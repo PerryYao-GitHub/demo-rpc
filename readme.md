@@ -107,7 +107,7 @@ RPC (Remote Procedure Call) 远程过程调用, 是一种计算机通信协议, 
   - 也可以在本地写一个静态代理实现类 `UserServiceProxy`
   - 以上两者逻辑类似, 但是显然把代理功能集成进入 rpc 框架会更加高效
 
-## rpc-easy (需引入 common-example)
+## rpc-easy:
 
 在 rpc 框架中, 我们需要解决一下几大子问题:
 
@@ -117,4 +117,16 @@ RPC (Remote Procedure Call) 远程过程调用, 是一种计算机通信协议, 
 - model: 规范化 RpcRequest 和 RpcResponse 的基本数据结构
 - proxy: 动态代理, 方便 consumer 通过代理对象获取需要的方法
 
-以上是基本架构, 具体细节见代码注释
+以上是基本架构, 具体细节见代码注释. 在简易版本的基础上, 我们逐步增加功能 (rpc-core). 
+
+# Update 1: Self-Defined Rpc Config
+
+显然, 之前的简易版本, 不方便开发者自定义, 例如Rpc服务的地址, 端口号等都是写死的, 所以我们有必要加入配置系统, 允许我们通过写入 `application.porperties` 文件来完成配置.
+
+## 要点
+
+- `com.ypy.rpc.config.RpcConfig`: 该 class 定义配置的基本模式以及默认参数
+- `com.ypy.rpc.constant.RpcConstant`: 该 interface 目前只有一个常量, 就是一个配置文件查询前缀 ("rpc"), 即默认情况下, 开发者在 `application.properties` 中应该使用 `rpc.XXX=YYY` 来做配置
+- `com.ypy.rpc.utils`: 工具类, 提供读取开发者项目中 `application.properties` 中配置项的方法. 并且其中的 `loadConfig` 方法中的参数使用反射, 使得在开发者在有自定义rpc配置的情况下, 重写 `RpcConfig`这个类
+- `com.ypy.rpc.RpcApplication`: 暴露给开发者, 它们使用该类进行 Rpc 初始化
+- 消费者和提供者可以在 `application.properties` 中配置 Rpc, 并在项目启动时使用 `RpcApplication.init()` 初始化

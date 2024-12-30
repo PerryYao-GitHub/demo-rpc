@@ -9,17 +9,26 @@
     <version>1.0-SNAPSHOT</version>
 
     <dependencies>
-        <dependency>
-            <groupId>com.ypy</groupId>
-            <artifactId>rpc-easy</artifactId>
-            <version>1.0-SNAPSHOT</version>
-        </dependency>
+<!-- common model -->
         <dependency>
             <groupId>com.ypy</groupId>
             <artifactId>example-common</artifactId>
             <version>1.0-SNAPSHOT</version>
         </dependency>
+<!-- rpc model -->
+<!--        <dependency>-->
+<!--            <groupId>com.ypy</groupId>-->
+<!--            <artifactId>rpc-easy</artifactId>-->
+<!--            <version>1.0-SNAPSHOT</version>-->
+<!--        </dependency>-->
+        <dependency>
+            <groupId>com.ypy</groupId>
+            <artifactId>rpc-core</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
 
+
+<!-- other model -->
         <dependency>
             <groupId>cn.hutool</groupId>
             <artifactId>hutool-all</artifactId>
@@ -32,6 +41,5 @@
             <scope>provided</scope>
         </dependency>
     </dependencies>
-
 
 </project>
