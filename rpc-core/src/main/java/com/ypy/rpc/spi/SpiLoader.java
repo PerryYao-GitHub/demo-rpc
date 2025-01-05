@@ -25,7 +25,7 @@ public class SpiLoader {
     private static Map<String, Object> instanceCache = new ConcurrentHashMap<>();
     private static final String RPC_SYSTEM_SPI_DIR = "META-INF/rpc/system/";
     private static final String RPC_CUSTOM_SPI_DIR = "META-INF/rpc/custom/";
-    private static final String[] SCAN_DIRS = new String[] {RPC_SYSTEM_SPI_DIR, RPC_CUSTOM_SPI_DIR};
+    private static final String[] SCAN_DIRS = new String[]{RPC_SYSTEM_SPI_DIR, RPC_CUSTOM_SPI_DIR};
     private static final List<Class<?>> LOAD_CLASS_LIST = Arrays.asList(Serializer.class);
 
 
@@ -34,6 +34,12 @@ public class SpiLoader {
         for (Class<?> clazz : LOAD_CLASS_LIST) load(clazz);
     }
 
+    /**
+     * load a certain Class from SPI
+     *
+     * @param loadClass
+     * @return
+     */
     public static Map<String, Class<?>> load(Class<?> loadClass) {
         log.info("load SPI {}", loadClass.getName());
         Map<String, Class<?>> keyClassMap = new HashMap<>();
@@ -53,7 +59,9 @@ public class SpiLoader {
                             keyClassMap.put(key, Class.forName(className));
                         }
                     }
-                } catch (Exception e) { log.error("spi resource load error", e); }
+                } catch (Exception e) {
+                    log.error("spi resource load error", e);
+                }
             }
         }
         loaderMap.put(loadClass.getName(), keyClassMap);

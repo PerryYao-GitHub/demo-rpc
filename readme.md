@@ -157,3 +157,50 @@ server 包负责面向 provider, provider 通过 HttpServerHandle 处理收到�
 核心逻辑是搭建一个 `SerializerFactory` 来维护可用的序列化器, 然后 server 包和 proxy 包中的序列化器就都通过工厂类获得
 
 注意: Hessian 目前除了不了带集合的字段, 因此有时会报错
+
+# Update 3.2: Introduce SPI
+
+之前的升级仅仅是提供了几个内置的序列化器, 但是如果开发者 (consumer & provider) 想自己写序列化器, 并把它引入 rpc 框架, 那应该怎么办呢?
+
+于是就引入了 Java SPI (Service Provider Interface) 机制, 这玩意说白了, 就是允许框架调用者, 自己写一些框架中的类, 并以此代替框架中原有的类. 当然, 这些类必须实现一些接口, 并且要在 resources 中声明.
+
+核心工具类: `SpiLoader` 
+
+- `public static Map<String, Class<?>> load(Class<?> loadClass)` (该方法的返回值并不重要, 关键是它会修改loaderMap)
+
+  加载特定的类 (接口), 也就是参数中的 loadClass. 例如, 我们需要对接口Serializer加载它所有的实现, 该方法会读取项目 resources 目录下特定的文件, 例如 "META-INF/rpc/system/com.ypy.rpc.serializer.Serializer"
+
+- `public static <T> T getInstance(Class<?> tClass, String key)`
+
+  从loaderMap中找到需要使用的类 (接口) 和关键字, 并返回, 例如我们需要 Serializer 借口 + key: json, 这样我们就能够确定具体的实现类了
+
+**对于使用者**:
+
+- 自己实现的序列化器可用放在任意包下. 例如它的路径是 "com.bob.consumer.serializer.BobSerializer"
+
+- 在**自己项目的 resources 目录下**, 建立文件夹及文件: META-INF/rpc/custom/ ypy.com.rpc.serializer.Serializer
+
+  !!!!! 文件名一定要是**框架中相对应借口的类名 (全称) 即: ypy.com.rpc.serializer.Serializer**
+
+- 在 ypy.com.rpc.serializer.Serializer 中, 书写使用者自定义的序列化器实现类, 及其别名, 例如
+
+  ```
+  bob=com.bob.consumer.serializer.BobSerializer # 用自己项目中实现类的全名
+  ```
+
+**对于框架本身**:
+
+- 框架本身已经提供了四种序列化器, 分别是 jdk, json, kryo, hessian
+
+- 它们的实现类路径在框架中
+
+  ```
+  jdk=com.ypy.rpc.serializer.JdkSerializer
+  json=com.ypy.rpc.serializer.JsonSerializer
+  hessian=com.ypy.rpc.serializer.HessianSerializer
+  kryo=com.ypy.rpc.serializer.KryoSerializer
+  ```
+
+- 它们的配置文件在META-INF/rpc/system/ ypy.com.rpc.serializer.Serializer, 这个配置文件在**框架的 resources 目录中**
+
+- 如果使用者的序列化器实现类与框架的序列化器重名 (key相同, 例如都叫 json), 那么框架会优先使用用户的实现类, 因为 `String[] SCAN_DIRS = new String[]{RPC_SYSTEM_SPI_DIR, RPC_CUSTOM_SPI_DIR};` 用户的配置被后导入, 会覆盖字典之前插入的键值对
