@@ -130,3 +130,12 @@ RPC (Remote Procedure Call) 远程过程调用, 是一种计算机通信协议, 
 - `com.ypy.rpc.utils`: 工具类, 提供读取开发者项目中 `application.properties` 中配置项的方法. 并且其中的 `loadConfig` 方法中的参数使用反射, 使得在开发者在有自定义rpc配置的情况下, 重写 `RpcConfig`这个类
 - `com.ypy.rpc.RpcApplication`: 暴露给开发者, 它们使用该类进行 Rpc 初始化
 - 消费者和提供者可以在 `application.properties` 中配置 Rpc, 并在项目启动时使用 `RpcApplication.init()` 初始化
+
+# Update 2: Mock Service Proxy
+
+为了给开发者提供测试假数据的功能, 我们添加了 Mock Service Proxy
+
+## 要点
+
+- 在 rpc 框架中的 proxy 添加 `MockServiceProxy` 主要编写生成假数据的逻辑: 例如 对基本数据类型返回默认值, 对Collection类型返回空Collection, 对自定义的 Object 可以递归调用该方法
+- 在 `ServiceProxyFactory` 中添加 `getMockFactory` 方法, 并且在 `getProxy()` 中检测开发者的配置文件, 如果有 `rpc.mock=true` 则返回使用 Mock 的 Serivice 对象 (开发者可以使用配置文件全局打开 mock, 也可以单独调用 mock 代理)

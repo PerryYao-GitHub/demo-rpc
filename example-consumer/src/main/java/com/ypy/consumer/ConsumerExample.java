@@ -1,6 +1,8 @@
 package com.ypy.consumer;
 
+import com.ypy.common.model.Book;
 import com.ypy.common.model.User;
+import com.ypy.common.service.BookService;
 import com.ypy.common.service.UserService;
 import com.ypy.rpc.config.RpcConfig;
 import com.ypy.rpc.proxy.ServiceProxyFactory;
@@ -19,5 +21,11 @@ public class ConsumerExample {
         } else {
             System.out.println("user is null");
         }
+        long number = userService.getNumber();
+        System.out.println(number); // output is 0, not 8964, it means that it is mock data
+
+        BookService bookService = ServiceProxyFactory.getProxy(BookService.class);
+        Book book = bookService.getBookById(8964);
+        System.out.println(book);
     }
 }

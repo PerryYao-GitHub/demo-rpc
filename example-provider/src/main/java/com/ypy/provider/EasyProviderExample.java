@@ -1,6 +1,7 @@
 package com.ypy.provider;
 
 import com.ypy.common.service.UserService;
+import com.ypy.provider.service.impl.UserServiceImpl;
 import com.ypy.rpc.registry.LocalRegistry;
 import com.ypy.rpc.server.HttpServer;
 import com.ypy.rpc.server.VertxHttpServer;

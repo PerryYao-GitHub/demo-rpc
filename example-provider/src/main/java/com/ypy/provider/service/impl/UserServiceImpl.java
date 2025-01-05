@@ -1,4 +1,4 @@
-package com.ypy.provider;
+package com.ypy.provider.service.impl;
 
 
 import com.ypy.common.service.UserService;

@@ -10,7 +10,12 @@ public interface UserService {
      * simulate get user
      *
      * @param user
-     * @return
+     * @return User
      */
     User getUser(User user);
+
+    /**
+     * new method get number
+     */
+    default short getNumber() { return 8964; }
 }
