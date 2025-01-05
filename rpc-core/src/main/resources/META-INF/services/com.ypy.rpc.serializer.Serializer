@@ -1,0 +1,4 @@
+com.ypy.rpc.serializer.JdkSerializer
+com.ypy.rpc.serializer.HessianSerializer
+com.ypy.rpc.serializer.JsonSerializer
+com.ypy.rpc.serializer.KryoSerializer

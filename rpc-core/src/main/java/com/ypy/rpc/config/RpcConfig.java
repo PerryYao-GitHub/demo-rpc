@@ -1,5 +1,6 @@
 package com.ypy.rpc.config;
 
+import com.ypy.rpc.constant.SerializerKeys;
 import lombok.Data;
 
 /**
@@ -31,4 +32,9 @@ public class RpcConfig {
      * start with mock?
      */
     private boolean mock = false;
+
+    /**
+     * serializer
+     */
+    private String serializer = SerializerKeys.JDK;
 }

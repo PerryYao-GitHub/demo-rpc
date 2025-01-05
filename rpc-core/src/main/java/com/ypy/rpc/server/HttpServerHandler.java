@@ -1,10 +1,11 @@
 package com.ypy.rpc.server;
 
+import com.ypy.rpc.RpcApplication;
 import com.ypy.rpc.registry.LocalRegistry;
 import com.ypy.rpc.model.RpcRequest;
 import com.ypy.rpc.model.RpcResponse;
-import com.ypy.rpc.serializer.JdkSerializer;
 import com.ypy.rpc.serializer.Serializer;
+import com.ypy.rpc.serializer.SerializerFactory;
 import io.vertx.core.Handler;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpServerRequest;
@@ -18,7 +19,8 @@ import java.lang.reflect.Method;
 public class HttpServerHandler implements Handler<HttpServerRequest> {
     @Override
     public void handle(HttpServerRequest request) {
-        final Serializer serializer = new JdkSerializer();
+         final Serializer serializer = SerializerFactory.getInstance(RpcApplication.getRpcConfig().getSerializer());
+
         System.out.println("Received request: " + request.method() + " " + request.uri());
         // asynchronous handle request
         request.bodyHandler(body -> {
