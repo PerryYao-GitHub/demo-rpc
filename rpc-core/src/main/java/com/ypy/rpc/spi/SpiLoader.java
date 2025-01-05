@@ -19,20 +19,45 @@ public class SpiLoader {
      * store the class that has been load, {interface name: {key: class}}
      */
     private static Map<String, Map<String, Class<?>>> loaderMap = new ConcurrentHashMap<>();
-
     /**
      * cache of instance, avoid repeat "new"
      */
     private static Map<String, Object> instanceCache = new ConcurrentHashMap<>();
-
-    private static final String RPC_SYSTEM_SPI_DIR = "META-INF/rpc/system";
-    private static final String RPC_CUSTOM_SPI_DIR = "META-INF/rpc/custom";
+    private static final String RPC_SYSTEM_SPI_DIR = "META-INF/rpc/system/";
+    private static final String RPC_CUSTOM_SPI_DIR = "META-INF/rpc/custom/";
     private static final String[] SCAN_DIRS = new String[] {RPC_SYSTEM_SPI_DIR, RPC_CUSTOM_SPI_DIR};
-
     private static final List<Class<?>> LOAD_CLASS_LIST = Arrays.asList(Serializer.class);
+
+
     public static void loadAll() {
         log.info("load all SPI");
         for (Class<?> clazz : LOAD_CLASS_LIST) load(clazz);
+    }
+
+    public static Map<String, Class<?>> load(Class<?> loadClass) {
+        log.info("load SPI {}", loadClass.getName());
+        Map<String, Class<?>> keyClassMap = new HashMap<>();
+        for (String scanDir : SCAN_DIRS) {
+            List<URL> resources = ResourceUtil.getResources(scanDir + loadClass.getName());
+            for (URL resource : resources) {
+                try {
+                    InputStreamReader inputStreamReader = new InputStreamReader(resource.openStream());
+                    BufferedReader bufferedReader = new BufferedReader(inputStreamReader);
+                    String line;
+                    while ((line = bufferedReader.readLine()) != null) {
+                        String[] strs = line.split("=");
+                        System.out.println(Arrays.toString(strs));
+                        if (strs.length > 1) {
+                            String key = strs[0];
+                            String className = strs[1];
+                            keyClassMap.put(key, Class.forName(className));
+                        }
+                    }
+                } catch (Exception e) { log.error("spi resource load error", e); }
+            }
+        }
+        loaderMap.put(loadClass.getName(), keyClassMap);
+        return keyClassMap;
     }
 
     public static <T> T getInstance(Class<?> tClass, String key) {
@@ -52,30 +77,5 @@ public class SpiLoader {
             }
         }
         return (T) instanceCache.get(implClassName);
-    }
-
-    public static Map<String, Class<?>> load(Class<?> loadClass) {
-        log.info("load SPI {}", loadClass.getName());
-        Map<String, Class<?>> keyClassMap = new HashMap<>();
-        for (String scanDir : SCAN_DIRS) {
-            List<URL> resources = ResourceUtil.getResources(scanDir + loadClass.getName());
-            for (URL resource : resources) {
-                try {
-                    InputStreamReader inputStreamReader = new InputStreamReader(resource.openStream());
-                    BufferedReader bufferedReader = new BufferedReader(inputStreamReader);
-                    String line;
-                    while ((line = bufferedReader.readLine()) != null) {
-                        String[] strs = line.split("=");
-                        if (strs.length > 1) {
-                            String key = strs[0];
-                            String className = strs[1];
-                            keyClassMap.put(key, Class.forName(className));
-                        }
-                    }
-                } catch (Exception e) { log.error("spi resource load error", e); }
-            }
-        }
-        loaderMap.put(loadClass.getName(), keyClassMap);
-        return keyClassMap;
     }
 }

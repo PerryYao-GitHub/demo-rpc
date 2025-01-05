@@ -13,6 +13,7 @@ public class JdkSerializer implements Serializer{
      */
     @Override
     public <T> byte[] serialize(T obj) throws IOException {
+        System.out.println("jdk serialize start");
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         ObjectOutputStream objectOutputStream = new ObjectOutputStream(outputStream);
         objectOutputStream.writeObject(obj);
@@ -31,6 +32,7 @@ public class JdkSerializer implements Serializer{
      */
     @Override
     public <T> T deserialize(byte[] bytes, Class<T> type) throws IOException {
+        System.out.println("jdk deserialize start");
         ByteArrayInputStream inputStream = new ByteArrayInputStream(bytes);
         ObjectInputStream objectInputStream = new ObjectInputStream(inputStream);
         try {

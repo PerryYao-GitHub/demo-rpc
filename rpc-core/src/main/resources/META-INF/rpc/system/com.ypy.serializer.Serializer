@@ -1,4 +1,4 @@
 jdk=com.ypy.rpc.serializer.JdkSerializer
-hessian=com.ypy.rpc.serializer.HessianSerializer
 json=com.ypy.rpc.serializer.JsonSerializer
+hessian=com.ypy.rpc.serializer.HessianSerializer
 kryo=com.ypy.rpc.serializer.KryoSerializer

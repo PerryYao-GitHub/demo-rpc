@@ -119,6 +119,14 @@ RPC (Remote Procedure Call) 远程过程调用, 是一种计算机通信协议, 
 
 以上是基本架构, 具体细节见代码注释. 在简易版本的基础上, 我们逐步增加功能 (rpc-core). 
 
+# server 包和 proxy 包
+
+这两个包是 rpc 框架的核心
+
+proxy 包负责面向 consumer, consumer 通过 ServiceProxy 代理, 获取代理对象, 通过代理对象来调用服务
+
+server 包负责面向 provider, provider 通过 HttpServerHandle 处理收到的 rpc 请求
+
 # Update 1: Self-Defined Rpc Config
 
 显然, 之前的简易版本, 不方便开发者自定义, 例如Rpc服务的地址, 端口号等都是写死的, 所以我们有必要加入配置系统, 允许我们通过写入 `application.porperties` 文件来完成配置.
@@ -139,3 +147,13 @@ RPC (Remote Procedure Call) 远程过程调用, 是一种计算机通信协议, 
 
 - 在 rpc 框架中的 proxy 添加 `MockServiceProxy` 主要编写生成假数据的逻辑: 例如 对基本数据类型返回默认值, 对Collection类型返回空Collection, 对自定义的 Object 可以递归调用该方法
 - 在 `ServiceProxyFactory` 中添加 `getMockFactory` 方法, 并且在 `getProxy()` 中检测开发者的配置文件, 如果有 `rpc.mock=true` 则返回使用 Mock 的 Serivice 对象 (开发者可以使用配置文件全局打开 mock, 也可以单独调用 mock 代理)
+
+# Updata 3.1: Variable Serializers and Self-defined Serializer
+
+框架默认的序列化器是 `JdkSerializer`
+
+框架提供 `JsonSerializer`, `KryoSerializer`, `HessianSerializer` 等三种序列化器, 可以在配置文件中分别使用 `rpc.serializer=json / kryo / hessian` 来启用
+
+核心逻辑是搭建一个 `SerializerFactory` 来维护可用的序列化器, 然后 server 包和 proxy 包中的序列化器就都通过工厂类获得
+
+注意: Hessian 目前除了不了带集合的字段, 因此有时会报错

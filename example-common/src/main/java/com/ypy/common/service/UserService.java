@@ -17,5 +17,5 @@ public interface UserService {
     /**
      * new method get number
      */
-    default short getNumber() { return 8964; }
+    default int getNumber() { return 8964; }
 }

@@ -7,15 +7,17 @@ import com.ypy.rpc.model.RpcResponse;
 import java.io.IOException;
 
 public class JsonSerializer implements Serializer {
-    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper(); // Exception in thread "main" java.lang.NoClassDefFoundError: com/fasterxml/jackson/databind/ObjectMapper
 
     @Override
     public <T> byte[] serialize(T obj) throws IOException {
+        System.out.println("json serialize start");
         return OBJECT_MAPPER.writeValueAsBytes(obj);
     }
 
     @Override
     public <T> T deserialize(byte[] bytes, Class<T> type) throws IOException {
+        System.out.println("json deserialize start");
         T obj = OBJECT_MAPPER.readValue(bytes, type);
         if (obj instanceof RpcRequest) return handleRequset((RpcRequest) obj, type);
         if (obj instanceof RpcResponse) return handleResponse((RpcResponse) obj, type);

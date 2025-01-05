@@ -3,6 +3,7 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/demo-rpc.iml" filepath="$PROJECT_DIR$/demo-rpc.iml" />
+      <module fileurl="file://$PROJECT_DIR$/rpc-easy.iml" filepath="$PROJECT_DIR$/rpc-easy.iml" />
     </modules>
   </component>
 </project>

@@ -21,11 +21,11 @@ public class ConsumerExample {
         } else {
             System.out.println("user is null");
         }
-        long number = userService.getNumber();
+        int number = userService.getNumber();
         System.out.println(number); // output is 0, not 8964, it means that it is mock data
 
         BookService bookService = ServiceProxyFactory.getProxy(BookService.class);
-        Book book = bookService.getBookById(8964);
+        Book book = bookService.getBookById(8964L); // in Book, there is a List field, so hessian serializer can't work here
         System.out.println(book);
     }
 }

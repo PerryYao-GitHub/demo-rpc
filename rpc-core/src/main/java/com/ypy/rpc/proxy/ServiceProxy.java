@@ -3,6 +3,7 @@ package com.ypy.rpc.proxy;
 import cn.hutool.http.HttpRequest;
 import cn.hutool.http.HttpResponse;
 import com.ypy.rpc.RpcApplication;
+import com.ypy.rpc.config.RpcConfig;
 import com.ypy.rpc.serializer.Serializer;
 import com.ypy.rpc.model.RpcRequest;
 import com.ypy.rpc.model.RpcResponse;
@@ -49,7 +50,9 @@ public class ServiceProxy implements InvocationHandler {
                 .build();
         try {
             byte[] bodyBytes = serializer.serialize(rpcRequest); // serialize the rpc request
-            try (HttpResponse httpResponse = HttpRequest.post("http://localhost:8080") // todo
+            RpcConfig rpcConfig = RpcApplication.getRpcConfig();
+            String postUrl = "http://" + rpcConfig.getServerHost() + ":" + rpcConfig.getServerPort();
+            try (HttpResponse httpResponse = HttpRequest.post(postUrl)
                     .body(bodyBytes)
                     .execute()) {
                 byte[] result = httpResponse.bodyBytes();
