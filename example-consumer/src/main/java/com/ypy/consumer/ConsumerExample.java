@@ -4,14 +4,18 @@ import com.ypy.common.model.Book;
 import com.ypy.common.model.User;
 import com.ypy.common.service.BookService;
 import com.ypy.common.service.UserService;
+import com.ypy.rpc.RpcApplication;
 import com.ypy.rpc.config.RpcConfig;
 import com.ypy.rpc.proxy.ServiceProxyFactory;
 import com.ypy.rpc.utils.ConfigUtils;
 
 public class ConsumerExample {
     public static void main(String[] args) {
+        RpcApplication.init();
+
         RpcConfig rpc = ConfigUtils.loadConfig(RpcConfig.class, "rpc");
         System.out.println(rpc);
+
         UserService userService = ServiceProxyFactory.getProxy(UserService.class); // using dynamic proxy to retrieve proxy objects from RPC proxy factory
         User user = new User();
         user.setName("mao");
