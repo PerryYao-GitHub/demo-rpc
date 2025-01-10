@@ -59,17 +59,41 @@
             <artifactId>kryo</artifactId>
             <version>5.6.0</version>
         </dependency>
+
+        <!-- etcd java cli -->
+        <dependency>
+            <groupId>io.etcd</groupId>
+            <artifactId>jetcd-core</artifactId>
+            <version>0.7.7</version>
+        </dependency>
     </dependencies>
 
+
     <build>
-    <resources>
-        <resource>
-            <directory>src/main/resources</directory>
-            <includes>
-                <include>**/*.properties</include>
-                <include>**/META-INF/**</include>
-            </includes>
-        </resource>
-    </resources>
-</build>
+        <plugins> <!-- 将所用的依赖一起打包 -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>3.3.0</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <includes>
+                    <include>**/*.properties</include>
+                    <include>**/META-INF/**</include>
+                </includes>
+            </resource>
+        </resources>
+    </build>
 </project>

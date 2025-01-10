@@ -1,0 +1,1 @@
+etcd=com.ypy.rpc.registry.EtcdRegistry

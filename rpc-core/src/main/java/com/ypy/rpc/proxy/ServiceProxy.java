@@ -3,7 +3,11 @@ package com.ypy.rpc.proxy;
 import cn.hutool.http.HttpRequest;
 import cn.hutool.http.HttpResponse;
 import com.ypy.rpc.RpcApplication;
+import com.ypy.rpc.RpcConstant;
 import com.ypy.rpc.config.RpcConfig;
+import com.ypy.rpc.model.ServiceMetaInfo;
+import com.ypy.rpc.registry.Registry;
+import com.ypy.rpc.registry.RegistryFactory;
 import com.ypy.rpc.serializer.Serializer;
 import com.ypy.rpc.model.RpcRequest;
 import com.ypy.rpc.model.RpcResponse;
@@ -12,6 +16,7 @@ import com.ypy.rpc.serializer.SerializerFactory;
 import java.io.IOException;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
+import java.util.List;
 
 /**
  * JDK dynamic proxy
@@ -42,8 +47,9 @@ public class ServiceProxy implements InvocationHandler {
     public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
         Serializer serializer = SerializerFactory.getInstance(RpcApplication.getRpcConfig().getSerializer());
         // build request
+        String serviceName = method.getDeclaringClass().getName();
         RpcRequest rpcRequest = RpcRequest.builder()
-                .serviceName(method.getDeclaringClass().getName())
+                .serviceName(serviceName)
                 .methodName(method.getName())
                 .parameterTypes(method.getParameterTypes())
                 .args(args)
@@ -51,8 +57,17 @@ public class ServiceProxy implements InvocationHandler {
         try {
             byte[] bodyBytes = serializer.serialize(rpcRequest); // serialize the rpc request
             RpcConfig rpcConfig = RpcApplication.getRpcConfig();
-            String postUrl = "http://" + rpcConfig.getServerHost() + ":" + rpcConfig.getServerPort();
-            try (HttpResponse httpResponse = HttpRequest.post(postUrl)
+            // String postUrl = "http://" + rpcConfig.getServerHost() + ":" + rpcConfig.getServerPort();
+            // get service addrees from register
+            Registry registry = RegistryFactory.getInstance(rpcConfig.getRegistryConfig().getRegistry());
+            ServiceMetaInfo serviceMetaInfo = new ServiceMetaInfo();
+            serviceMetaInfo.setServiceName(serviceName);
+            serviceMetaInfo.setServiceVersion(RpcConstant.DEFAULT_SERVICE_VERSION);
+            List<ServiceMetaInfo> serviceMetaInfos = registry.serviceDiscovery(serviceMetaInfo.getServiceKey());
+            if (serviceMetaInfos.isEmpty()) throw new RuntimeException("no service url");
+            ServiceMetaInfo selectedServiceMetaInfo = serviceMetaInfos.get(0); // choose the first service temporarily
+
+            try (HttpResponse httpResponse = HttpRequest.post(selectedServiceMetaInfo.getServiceAddr())
                     .body(bodyBytes)
                     .execute()) {
                 byte[] result = httpResponse.bodyBytes();

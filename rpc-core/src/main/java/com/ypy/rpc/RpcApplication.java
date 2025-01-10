@@ -1,7 +1,9 @@
 package com.ypy.rpc;
 
+import com.ypy.rpc.config.RegistryConfig;
 import com.ypy.rpc.config.RpcConfig;
-import com.ypy.rpc.constant.RpcConstant;
+import com.ypy.rpc.registry.Registry;
+import com.ypy.rpc.registry.RegistryFactory;
 import com.ypy.rpc.utils.ConfigUtils;
 import lombok.extern.slf4j.Slf4j;
 
@@ -21,6 +23,11 @@ public class RpcApplication {
     public static void init(RpcConfig newRpcConfig) {
         rpcConfig = newRpcConfig;
         log.info("rpc init, config = {}", newRpcConfig.toString());
+        // registry init
+        RegistryConfig registryConfig = rpcConfig.getRegistryConfig();
+        Registry registry = RegistryFactory.getInstance(registryConfig.getRegistry());
+        registry.init(registryConfig);
+        log.info("registry init, config = {}", registryConfig);
     }
 
     /**

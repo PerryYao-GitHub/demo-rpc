@@ -1,4 +1,4 @@
-package com.ypy.rpc.constant;
+package com.ypy.rpc.serializer;
 
 public interface SerializerKeys {
     String JDK = "jdk";

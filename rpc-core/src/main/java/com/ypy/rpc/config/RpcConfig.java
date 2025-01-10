@@ -1,6 +1,6 @@
 package com.ypy.rpc.config;
 
-import com.ypy.rpc.constant.SerializerKeys;
+import com.ypy.rpc.serializer.SerializerKeys;
 import lombok.Data;
 
 /**
@@ -37,4 +37,9 @@ public class RpcConfig {
      * serializer
      */
     private String serializer = SerializerKeys.JDK;
+
+    /**
+     * registry
+     */
+    private RegistryConfig registryConfig = new RegistryConfig();
 }
