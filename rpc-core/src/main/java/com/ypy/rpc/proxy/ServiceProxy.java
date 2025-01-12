@@ -66,6 +66,8 @@ public class ServiceProxy implements InvocationHandler {
             List<ServiceMetaInfo> serviceMetaInfos = registry.serviceDiscovery(serviceMetaInfo.getServiceKey());
             if (serviceMetaInfos.isEmpty()) throw new RuntimeException("no service url");
             ServiceMetaInfo selectedServiceMetaInfo = serviceMetaInfos.get(0); // choose the first service temporarily
+            System.out.println("调用的服务: " + serviceName + "调用的方法: " + method.getName());
+            System.out.println("找到的服务: " + selectedServiceMetaInfo);
 
             try (HttpResponse httpResponse = HttpRequest.post(selectedServiceMetaInfo.getServiceAddr())
                     .body(bodyBytes)

@@ -40,4 +40,17 @@ public interface Registry {
      * destroy whole registry
      */
     void destroy();
+
+    /**
+     * heart beat (Provider)
+     */
+    void heartBeat();
+
+    /**
+     * watch service key node, for Consumer.
+     * e.g. when some node is destroyed, Consumer will change service cache
+     *
+     * @param serviceKeyNode
+     */
+    void watch(String serviceKeyNode);
 }

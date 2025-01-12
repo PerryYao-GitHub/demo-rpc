@@ -25,15 +25,22 @@ public class ProviderExample {
         RpcConfig rpcConfig = RpcApplication.getRpcConfig();
         RegistryConfig registryConfig = rpcConfig.getRegistryConfig();
         Registry registry = RegistryFactory.getInstance(registryConfig.getRegistry());
-        ServiceMetaInfo serviceMetaInfo = new ServiceMetaInfo();
-        serviceMetaInfo.setServiceName(UserService.class.getName());
-        serviceMetaInfo.setServiceHost(rpcConfig.getServerHost());
-        serviceMetaInfo.setServicePort(rpcConfig.getServerPort());
+
+        ServiceMetaInfo userServiceMetaInfo = new ServiceMetaInfo();
+        userServiceMetaInfo.setServiceName(UserService.class.getName());
+        userServiceMetaInfo.setServiceHost(rpcConfig.getServerHost());
+        userServiceMetaInfo.setServicePort(rpcConfig.getServerPort());
         try {
-            registry.register(serviceMetaInfo);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+            registry.register(userServiceMetaInfo);
+        } catch (Exception e) { throw new RuntimeException(e); }
+
+        ServiceMetaInfo bookServiceMetaInfo = new ServiceMetaInfo();
+        bookServiceMetaInfo.setServiceName(BookService.class.getName());
+        bookServiceMetaInfo.setServiceHost(rpcConfig.getServerHost());
+        bookServiceMetaInfo.setServicePort(rpcConfig.getServerPort());
+        try {
+            registry.register(bookServiceMetaInfo);
+        } catch (Exception e) { throw new RuntimeException(e); }
 
         // start web server
         HttpServer httpServer = new VertxHttpServer();

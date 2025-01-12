@@ -20,7 +20,7 @@ public class KryoSerializer implements Serializer {
 
     @Override
     public <T> byte[] serialize(T obj) throws IOException {
-        System.out.println("kryo serialize start");
+//        System.out.println("kryo serialize start");
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         Output output = new Output(bos);
         KRYO_THREAD_LOCAL.get().writeObject(output, obj);
@@ -30,7 +30,7 @@ public class KryoSerializer implements Serializer {
 
     @Override
     public <T> T deserialize(byte[] bytes, Class<T> type) throws IOException {
-        System.out.println("kryo deserialize start");
+//        System.out.println("kryo deserialize start");
         ByteArrayInputStream bis = new ByteArrayInputStream(bytes);
         Input input = new Input(bis);
         T result = KRYO_THREAD_LOCAL.get().readObject(input, type);

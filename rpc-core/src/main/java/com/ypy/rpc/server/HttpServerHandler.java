@@ -21,7 +21,8 @@ public class HttpServerHandler implements Handler<HttpServerRequest> {
     public void handle(HttpServerRequest request) {
         final Serializer serializer = SerializerFactory.getInstance(RpcApplication.getRpcConfig().getSerializer());
 
-        System.out.println("Received request: " + request.method() + " " + request.uri());
+//        System.out.println("Received request: " + request.method() + " " + request.uri());
+
         // asynchronous handle request
         request.bodyHandler(body -> {
             byte[] bytes = body.getBytes();

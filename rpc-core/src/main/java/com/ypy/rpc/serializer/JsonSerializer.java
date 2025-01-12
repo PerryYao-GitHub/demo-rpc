@@ -11,13 +11,13 @@ public class JsonSerializer implements Serializer {
 
     @Override
     public <T> byte[] serialize(T obj) throws IOException {
-        System.out.println("json serialize start");
+//        System.out.println("json serialize start");
         return OBJECT_MAPPER.writeValueAsBytes(obj);
     }
 
     @Override
     public <T> T deserialize(byte[] bytes, Class<T> type) throws IOException {
-        System.out.println("json deserialize start");
+//        System.out.println("json deserialize start");
         T obj = OBJECT_MAPPER.readValue(bytes, type);
         if (obj instanceof RpcRequest) return handleRequset((RpcRequest) obj, type);
         if (obj instanceof RpcResponse) return handleResponse((RpcResponse) obj, type);

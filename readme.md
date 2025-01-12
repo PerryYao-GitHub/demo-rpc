@@ -449,6 +449,8 @@ Raft 是一种分布式一致性算法, 它确保了分布式系统中的所有�
 - etcdctl: 客户端, 用于操作 etcd, 比如读写数据
 - etcdutl: 备份恢复工具
 
+`etcd --listen-client-urls http://localhost:2375 --advertise-client-urls http://localhost:2375` 开启 Etcd 服务
+
 #### Etcd Java 客户端
 
 与Jedis, Redisson 一样, Etcd 也有 Java 客户端, 方便使用 Java 代码操作数据库
@@ -545,8 +547,8 @@ public class EtcdRegistry implements Registry {
 }
 ```
 
-- **服务的存储 Key 格式**:  /rpc/UserService:1.0/localhost:8080 相当于 `ETCD_ROOT_PATH + serviceMetaInfo.getServiceNodeKey()`
-- **查找时的 Key 格式**: /rpc/UserService:1.0/ 相当于 `ETCD_ROOT_PATH + serviceMetaInfo.getServiceKey()` 这里有一个悬念, 当前代码中只会选取查找到的第一个 service 进行 RPC 调用. 也就是说, 我们只关心服务对不对, 而不关心这个服务是哪一个结点 (服务器或端口) 提供的. 在一个服务被多机部署时, 我们这不能简单地这样干, 我们要考虑向哪一个结点去发送 RPC 调用. 
+- **服务的存储Key 格式**:  /rpc/UserService:1.0/localhost:8080 相当于 `ETCD_ROOT_PATH + serviceMetaInfo.getServiceNodeKey()`
+- **查找时的 Key 格式**: /rpc/UserService:1.0/ 相当于 `ETCD_ROOT_PATH + serviceMetaInfo.getServiceKey()`. 这里有一个悬念, 当前代码中只会选取查找到的第一个 service 进行 RPC 调用. 也就是说, 我们只关心服务对不对, 而不关心这个服务是哪一个结点 (服务器或端口) 提供的. 在一个服务被多机部署时, 我们这不能简单地这样干, 我们要考虑向哪一个结点去发送 RPC 调用. 
 
 为了支持注册中心实现类的可扩展性 (就像 Serializer 一样), 我们依然采用 SPI 机制.
 
@@ -629,5 +631,282 @@ public class ProviderExample {
 
 事实上, 本地注册是把对应的服务名和实现类准备好 (相当于做好饭菜). 注册中心则相当于集中管理了好多 Provider 提供的服务的信息 (相当于存储管理各个饭店饭菜的信息). 你饭菜都没做好, 别人即时拿到了饭店饭菜的信息, 他来吃了也是吃个屁. 
 
+## Update 5: More Function for Registry Center
 
+>对于注册中心, 我们还有以下优化点:
+>
+>- 数据一致性: 当某个 Provider 下线了, 注册中心需要即时剔除它的结点服务信息.
+>- 性能优化: Consumer 每次都要从注册中心获取服务, 可以使用缓存进行优化. 
+>- 高可用性: 保证注册中心不会宕机. 
+>- 高扩展性: 提供不同的注册中心实现类, 并使用 SPI 机制运行用户自定义注册中心实现类. 
 
+### 心跳检测 (Heart Beat) 和续期机制 --- 被动下线 (Provider 端)
+
+通过定期发送**心跳信号 (请求) **来检测目标状态. 如果对方在一定时间内为收到信号或为正常应答, 则判断目标系统不可用. 
+
+使用 Etcd 实现心跳检测会更简单: Etcd 只带了 Key 的过期机制. 可用给结点的注册信息一个生命倒计时, 让结点定期**续期**, 以重置自己的倒计时. 如果结点挂了, 就会续期失败 Etcd 自动删除 Key. 主要步骤如下:
+
+1.  Provider 向 Etcd 提供自己的服务信息, 并在注册时设置 TTL (生存时间).
+2. Etcd 在接收到 Provider 的注册信息后, 自动维护 TTL, 并在 TTL 过期时删除该服务结点信息.
+3. 服务提供者定期请求 Etcd 续签自己的注册信息, 重写 TTL.
+
+注意: 续期时间一定要小于过期时间, 允许一次容错机会. 
+
+每一个 Provider 都需要找到自己的注册结点, 并续期自己的结点. 于是可以在 Provider 本地维护一个**已注册结点信息集合**, 注册时添加结点 Key 到集合中, 只需要续期集合内的 Key 即可.
+
+:star:`com.ypy.rpc.registry.Registry`
+
+添加方法 `heartBeat()`, 这个方法中有定时任务, 会持续向 Etcd 发送服务信息续期请求
+
+:star:`com.ypy.rpc.registry.EtcdRegistry`
+
+添加 `Set<String> localRegisterNodeKeySet`: 用于记录当前结点注册的所有服务名. 同时调整 `register, unregister` 等方法.
+
+实现 `heartBeat()` 方法, 并添加至 `init()` 中:
+
+```java
+@Override
+public void heartBeat() {
+    CronUtil.schedule("*/10 * * * * *", new Task() { // every 10 seconds, update lease for all services provided by current Provider
+        @Override
+        public void execute() {
+            for (String key : localRegisterNodeKeySet) {
+                try {
+                    List<KeyValue> kvs = kvCli.get(ByteSequence.from(key, StandardCharsets.UTF_8))
+                        .get()
+                        .getKvs();
+                    if (CollUtil.isEmpty(kvs)) continue;
+                    KeyValue kv = kvs.get(0);
+                    String val = kv.getValue().toString(StandardCharsets.UTF_8);
+                    ServiceMetaInfo serviceMetaInfo = JSONUtil.toBean(val, ServiceMetaInfo.class);
+                    register(serviceMetaInfo);
+                } catch (Exception e) { throw new RuntimeException(key + " updating lease failed", e); }
+            }
+        }
+    });
+
+    CronUtil.setMatchSecond(true);
+    CronUtil.start();
+}
+```
+
+该方法本质上是一个定时任务, 每隔 10 s 向 Etcd 提交续期请求
+
+### 下线机制 --- 主动下线 (Provider 端)
+
+这里的下线主要指的是: 某一台服务器正常停止推出之前, 需要告知一下 Etcd, 让它删除该服务器提供的所有服务的信息. 与以上的心跳检测不一样, 心跳检测是防止 Provider 非正常停止 (宕机).
+
+:star:修改 `destroy()` 方法
+
+:star:`com.ypy.rpc.RpcApplication` 中的 `init()` 方法中, 添加 `Shutdown Hook`
+
+```
+// use Shutdown Hook, when JVM stop, execute the process:
+Runtime.getRuntime().addShutdownHook(new Thread(registry::destroy));
+```
+
+用于在 JVM 正常停机时, 执行 `destroy()` 方法
+
+关于 `Shutdown Hook`:
+
+- 它是在 JVM 正常退出时 (之前) 执行的逻辑
+- 以下都算 JVM 正常退出:
+  - `main` 方法执行完了
+  - 显示调用了 `System.exit(0)`
+  - 在外部使用了 `^C`, 或在 IDEA 中点击停止
+- `Shut Hook` 不能阻止 JVM 关闭
+
+### 服务信息缓存 (Consumer 端)
+
+Consumer 端使用一个列表来存储服务信息即可
+
+:star:`com.ypy.rpc.registry.RegistryServiceCache`
+
+核心是个字典, 用来存储 Consumer 调用的服务的信息的缓存, 避免了消费者重复通过 Etcd 获取服务信息
+
+```java
+public class RegistryServiceCache {
+    Map<String, List<ServiceMetaInfo>> serviceCache = new ConcurrentHashMap<>();
+    void writeCache(String serviceKey, List<ServiceMetaInfo> newServiceCache) {
+        serviceCache.put(serviceKey, newServiceCache);
+    }
+    List<ServiceMetaInfo> readCache(String serviceKey) {
+        return serviceCache.get(serviceKey);
+    }
+    void clearCache(String serviceKey) {
+        serviceCache.remove(serviceKey);
+    }
+}
+```
+
+:star:`com.ypy.rpc.registry.Register`
+
+添加 `watch()` 方法, 当某个 Provider 下线了 (主动或被动), 要通过 Etcd 通知所有的 Consumer, 让它们更新服务缓存.
+
+:star:添加`com.ypy.rpc.registry.EtcdRegister` 中的 `watch()` 方法
+
+```java
+public class EtcdRegistry implements Registry {
+    private Client cli;
+
+    private KV kvCli;
+
+    private static final String ETCD_ROOT_PATH = "/rpc/";
+
+    private final Set<String> localRegisterNodeKeySet = new HashSet<>();
+
+    private final RegistryServiceCache registryServiceCache = new RegistryServiceCache();
+
+    private final Set<String> watchingKeyNodeSet = new ConcurrentHashSet<>(); // [/rpc/com.ypy.common.service.BookService:1.0/localhost:8080, /rpc/com.ypy.common.service.UserService:1.0/localhost:8080]
+
+    @Override
+    public void init(RegistryConfig registryConfig) {
+        cli = Client
+                .builder()
+                .endpoints(registryConfig.getAddress()) // Etcd Service Url Port
+                .connectTimeout(Duration.ofMillis(registryConfig.getTimeout()))
+                .build();
+        kvCli = cli.getKVClient();
+        heartBeat(); // start heart beat
+    }
+
+    @Override
+    public void register(ServiceMetaInfo serviceMetaInfo) throws Exception {
+        Lease leaseCli = cli.getLeaseClient();
+
+        long leaseId = leaseCli.grant(30).get().getID(); // 30s lease
+
+        String registerKey = ETCD_ROOT_PATH + serviceMetaInfo.getServiceNodeKey();
+        ByteSequence key = ByteSequence.from(registerKey, StandardCharsets.UTF_8);
+        ByteSequence val = ByteSequence.from(JSONUtil.toJsonStr(serviceMetaInfo), StandardCharsets.UTF_8);
+
+        PutOption putOption = PutOption.builder().withLeaseId(leaseId).build();
+        kvCli.put(key, val, putOption).get();
+
+        localRegisterNodeKeySet.add(registerKey); // add key node into local set
+    }
+
+    @Override
+    public void unregister(ServiceMetaInfo serviceMetaInfo) {
+        String registerKey = ETCD_ROOT_PATH + serviceMetaInfo.getServiceNodeKey();
+        kvCli.delete(ByteSequence.from(registerKey, StandardCharsets.UTF_8));
+        localRegisterNodeKeySet.remove(registerKey); // remove key node from local set
+    }
+
+    @Override
+    public List<ServiceMetaInfo> serviceDiscovery(String serviceKey) {
+        System.out.println(watchingKeyNodeSet);
+        // search in service cache first
+        List<ServiceMetaInfo> cachedServiceMetaInfos = registryServiceCache.readCache(serviceKey);
+        if (cachedServiceMetaInfos != null) {
+            System.out.printf("get %s service meta info from cache \n", cachedServiceMetaInfos.get(0));
+            return cachedServiceMetaInfos;
+        }
+
+        // search in registry center
+        String searchPrefix = ETCD_ROOT_PATH + serviceKey + "/";
+        try {
+            GetOption getOption = GetOption.builder().isPrefix(true).build();
+            List<KeyValue> kvs = kvCli.get(
+                    ByteSequence.from(searchPrefix, StandardCharsets.UTF_8),
+                    getOption
+            ).get().getKvs();
+
+            /*
+            return kvs.stream()
+                    .map(kv -> {
+                        String val = kv.getValue().toString(StandardCharsets.UTF_8);
+                        return JSONUtil.toBean(val, ServiceMetaInfo.class);
+                    }).collect(Collectors.toList());
+             */
+            // interpret service info list
+            List<ServiceMetaInfo> serviceMetaInfoList = kvs.stream()
+                    .map(kv -> {
+                        String key = kv.getKey().toString(StandardCharsets.UTF_8);
+                        watch(key);
+                        /*
+                        System.out.println(key); // /rpc/com.ypy.common.service.UserService:1.0/localhost:8080
+                        System.out.println(serviceKey); // com.ypy.common.service.UserService:1.0
+                        */
+                        String val = kv.getValue().toString(StandardCharsets.UTF_8);
+                        return JSONUtil.toBean(val, ServiceMetaInfo.class);
+                    }).collect(Collectors.toList());
+
+            // write into cache
+            registryServiceCache.writeCache(serviceKey, serviceMetaInfoList);
+            System.out.printf("get %s service meta info from etcd \n", serviceMetaInfoList);
+            return serviceMetaInfoList;
+        } catch (Exception e) {
+            throw new RuntimeException("getting service list failed", e);
+        }
+    }
+
+    /**
+     * execute the following process when JVM stop
+     */
+    @Override
+    public void destroy() {
+        System.out.println("destroy current node");
+
+        for (String key: localRegisterNodeKeySet) {
+            try {
+                kvCli.delete(ByteSequence.from(key, StandardCharsets.UTF_8)).get();
+            } catch (Exception e) {
+                throw new RuntimeException(key + "destroy failed");
+            }
+        }
+
+        if (kvCli != null) kvCli.close();
+        if (cli != null) cli.close();
+    }
+
+    @Override
+    public void heartBeat() {
+        CronUtil.schedule("*/10 * * * * *", new Task() { // every 10 seconds, update lease for all services provided by current Provider
+            @Override
+            public void execute() {
+                for (String key : localRegisterNodeKeySet) {
+                    try {
+                        List<KeyValue> kvs = kvCli.get(ByteSequence.from(key, StandardCharsets.UTF_8))
+                                .get()
+                                .getKvs();
+                        if (CollUtil.isEmpty(kvs)) continue;
+                        KeyValue kv = kvs.get(0);
+                        String val = kv.getValue().toString(StandardCharsets.UTF_8);
+                        ServiceMetaInfo serviceMetaInfo = JSONUtil.toBean(val, ServiceMetaInfo.class);
+                        register(serviceMetaInfo);
+                    } catch (Exception e) { throw new RuntimeException(key + " updating lease failed", e); }
+                }
+            }
+        });
+
+        CronUtil.setMatchSecond(true);
+        CronUtil.start();
+    }
+
+    @Override
+    public void watch(String serviceKeyNode) {
+        Watch watchCli = cli.getWatchClient();
+        if (watchingKeyNodeSet.add(serviceKeyNode)) {
+            watchCli.watch(ByteSequence.from(serviceKeyNode, StandardCharsets.UTF_8), response -> {
+                for (WatchEvent event : response.getEvents()) {
+                    switch (event.getEventType()) {
+                        case DELETE:
+                            registryServiceCache.clearCache(serviceKeyNode); break; // todo: transform serviceKeyNode to serviceKey !!!
+                        case PUT:
+                        default: break;
+                    }
+                }
+            });
+        }
+    }
+}
+```
+
+### :smile:形象的例子
+
+还是那个食客 - 点餐平台 (美团) - 饭馆的例子. 食客 = Consumer, 美团 = 注册中心, 餐馆 = Provider. 
+
+食客从美团不是去吃菜 (调用服务), 而是获取餐馆和菜品信息, 然后再去餐馆吃菜 (发起 RPC 请求). 
+
+这里缓存, 实际就是, 当一个食客经常去某餐馆吃饭, 他去多了, 也就没有必要次次都去到美团上查看关于餐馆的信息 (例如在哪里, 有哪些菜品). 

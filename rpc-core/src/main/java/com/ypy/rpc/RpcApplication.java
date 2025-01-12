@@ -28,6 +28,9 @@ public class RpcApplication {
         Registry registry = RegistryFactory.getInstance(registryConfig.getRegistry());
         registry.init(registryConfig);
         log.info("registry init, config = {}", registryConfig);
+
+        // use Shutdown Hook, when JVM stop, execute the process:
+        Runtime.getRuntime().addShutdownHook(new Thread(registry::destroy));
     }
 
     /**

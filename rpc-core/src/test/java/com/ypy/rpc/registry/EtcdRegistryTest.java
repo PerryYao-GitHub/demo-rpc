@@ -59,4 +59,10 @@ public class EtcdRegistryTest {
         List<ServiceMetaInfo> serviceMetaInfoList = registry.serviceDiscovery(serviceKey);
         Assert.assertNotNull(serviceMetaInfoList);
     }
+
+    @Test
+    public void heartBeat() throws Exception {
+        register();
+        Thread.sleep(60 * 1000L);
+    }
 }
