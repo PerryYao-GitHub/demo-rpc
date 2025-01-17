@@ -52,7 +52,7 @@ public class SpiLoader {
                     String line;
                     while ((line = bufferedReader.readLine()) != null) {
                         String[] strs = line.split("=");
-                        System.out.println(Arrays.toString(strs));
+//                        System.out.println(Arrays.toString(strs));
                         if (strs.length > 1) {
                             String key = strs[0];
                             String className = strs[1];

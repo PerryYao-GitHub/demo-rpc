@@ -11,8 +11,9 @@ import com.ypy.rpc.model.ServiceMetaInfo;
 import com.ypy.rpc.registry.LocalRegistry;
 import com.ypy.rpc.registry.Registry;
 import com.ypy.rpc.registry.RegistryFactory;
-import com.ypy.rpc.server.HttpServer;
-import com.ypy.rpc.server.VertxHttpServer;
+import com.ypy.rpc.server.Server;
+import com.ypy.rpc.server.http.VertxHttpServer;
+import com.ypy.rpc.server.tcp.VertxTcpServer;
 
 public class ProviderExample {
     public static void main(String[] args) {
@@ -42,8 +43,12 @@ public class ProviderExample {
             registry.register(bookServiceMetaInfo);
         } catch (Exception e) { throw new RuntimeException(e); }
 
-        // start web server
-        HttpServer httpServer = new VertxHttpServer();
-        httpServer.doStart(RpcApplication.getRpcConfig().getServerPort());
+        // start web server (http server)
+//        Server httpServer = new VertxHttpServer();
+//        httpServer.doStart(RpcApplication.getRpcConfig().getServerPort());
+
+        // start web server (tcp server)
+        Server tcpServer = new VertxTcpServer();
+        tcpServer.doStart(RpcApplication.getRpcConfig().getServerPort());
     }
 }

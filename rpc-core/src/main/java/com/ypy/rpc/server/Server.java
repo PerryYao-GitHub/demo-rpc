@@ -3,7 +3,7 @@ package com.ypy.rpc.server;
 /**
  * http server interface, define unified method of starting server
  */
-public interface HttpServer {
+public interface Server {
     /**
      * start server
      *

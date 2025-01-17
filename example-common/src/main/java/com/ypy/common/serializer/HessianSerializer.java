@@ -12,7 +12,7 @@ import java.util.List;
 public class HessianSerializer implements Serializer {
     @Override
     public <T> byte[] serialize(T obj) throws IOException {
-        System.out.println("hessian serialize start");
+//        System.out.println("hessian serialize start");
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         HessianOutput ho = new HessianOutput(bos);
         ho.writeObject(obj);  // Hessian should automatically handle collections
@@ -21,7 +21,7 @@ public class HessianSerializer implements Serializer {
 
     @Override
     public <T> T deserialize(byte[] bytes, Class<T> type) throws IOException {
-        System.out.println("hessian deserialize start");
+//        System.out.println("hessian deserialize start");
         ByteArrayInputStream bis = new ByteArrayInputStream(bytes);
         HessianInput hi = new HessianInput(bis);
 

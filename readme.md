@@ -97,9 +97,9 @@ UserService userService = ServiceProxyFactory.getProxy(UserService.class);
 
 RPC 框架帮助 Provider 接受并处理请求的核心逻辑在 `com.ypy.rpc.server` 包中
 
-其中 `com.ypy.rpc.server.VertxHttpServer` 是用来部署处理 RPC 请求的服务器的
+其中 `com.ypy.rpc.server.http.VertxHttpServer` 是用来部署处理 RPC 请求的服务器的
 
-`com.ypy.rpc.server.HttpServerHandler` 则是处理请求的关键:
+`com.ypy.rpc.server.http.HttpServerHandler` 则是处理请求的关键:
 
 ```java
 request.bodyHandler(body -> {
@@ -910,3 +910,242 @@ public class EtcdRegistry implements Registry {
 食客从美团不是去吃菜 (调用服务), 而是获取餐馆和菜品信息, 然后再去餐馆吃菜 (发起 RPC 请求). 
 
 这里缓存, 实际就是, 当一个食客经常去某餐馆吃饭, 他去多了, 也就没有必要次次都去到美团上查看关于餐馆的信息 (例如在哪里, 有哪些菜品). 
+
+## Update 6: Self-defined Protocol
+
+目前, 该框架使用 Vert.x 的 HttpServer 作为服务提供者的服务器, 代码实现比较简单, 其底层网络传输使用的是 HTTP 协议. 
+
+HTTP 协议虽然简单易用, 但是用它来传输 RPC Response 和 RPC Request 事实上是大材小用了, 所以我们可以使用 TCP 协议, 并自己制定一种 TCP 解码规则.
+
+### TCP 自定义协议
+
+:star:软件包: ​`com.ypy.rpc.protocol`
+
+一个自定义的TCP协议的传输数据流由 Header 和 Body 组成 (`ProtocolMessage<>`). 其中 Header 包含:
+
+- magic number: 一个约定好的数字, 相当于令牌 (1 byte)
+- version (1 byte)
+- serializer: 写明了使用哪种序列化器, 用一个数字对应 (1 byte)
+- type: 标注信息类型, RPC Resquest or Respone or Heart Beat ... (1 byte)
+- status: 标注是否传输成功 (1 byte)
+- requestId (8 byte)
+- bodyLength: 最重要的一项, 用于解决半包粘包问题 (4 byte)
+
+至于 Body 部分, 它就是存放我们的 RpcRequest 和 RpcResponse
+
+:star:`com.ypy.rpc.protocol.ProtocolMessageUtils`:
+
+该工具类有两个静态方法: 
+
+`encode`: 把封装好的 `ProtocolMessage<?>` 对象变成字节流 (Buffer). 从 `ProtocolMessage.Header` 中解析出 序列化器, 使用序列化器把 `ProtocolMessage<?>` 序列化成字节流
+
+ `decode`: 把字节流 (Buffer) 变成 `ProtocolMessage<?>`. 从 Buffer 中直接读出序列化器的代号 (1 byte 数字), 使用序列化器反序列化 Buffer. 
+
+### 改造 Server
+
+之前的 Server, 是 `HttpServer` 接口, 很明显, 它不一定要通过http协议实现, 故把它改为 `Server` 接口, 把之前的 `VertxHttpServer` 和 `VertHttpServer` 置入 http 包. 在 tcp 包中完成 `VertxTcpServer` 和 `TcpServerHandler` 等.
+
+tcp 包中:
+
+:star:`VertxTcpServer`: 启动一个 TCP 协议的网络服务器
+
+:star:`TcpServerHandler`: 为 Provider 提供, 处理 Rpc 请求
+
+:star:`TcpBufferHandlerWrapper`: 辅助处理 TCP 字节流, 防止半包粘包问题
+
+:star:`VertxTcpClient`: 集成了发送 TCP 请求的代码
+
+当我们使用 Http 协议时, 发送请求很简单, 于是就直接把发送请求的代码写在 `ServiceProxy` 中了:
+
+```java
+try (HttpResponse httpResponse = HttpRequest.post(selectedServiceMetaInfo.getServiceAddr())
+     .body(bodyBytes)
+     .execute()) {
+    byte[] result = httpResponse.bodyBytes();
+    RpcResponse rpcResponse = serializer.deserialize(result, RpcResponse.class);
+    return rpcResponse.getData();
+}
+```
+
+由于现在使用 TCP 协议, 发送请求代码逻辑比较多, 于是单独封装成工具类, 调用其中 `doRequest` 方法发送TCP信息.
+
+最后就是稍微调整`ServiceProxy` 中的逻辑, 和 Provider, Consumer 即可完成本次升级.
+
+### 解决半包 (Partial Packet) 和粘包 (Packet Merging)
+
+`TcpBufferHandlerWrapper` 是解决半包和粘包问题的关键. 凡是在需要接受TCP信息的场合, 我们都需要解决这个问题. 在以上组件中, `TcpServerHandler` 和 `VertxTcpClient` 都需要接收 TCP 信息. 我们先看看在这两个组件中, 是如何使用 `TcpBufferHandlerWrapper` 的:
+
+:star:`VertxTcpClient`
+
+```java
+public class VertxTcpClient {
+    public static RpcResponse doRequest(RpcRequest rpcRequest, ServiceMetaInfo serviceMetaInfo) throws InterruptedException, ExecutionException {
+        // send tcp request
+        Vertx vertx = Vertx.vertx();
+        NetClient netClient = vertx.createNetClient();
+        CompletableFuture<RpcResponse> responseFuture = new CompletableFuture<>();
+        netClient.connect(serviceMetaInfo.getServicePort(), serviceMetaInfo.getServiceHost(),
+                res -> {
+                    if (!res.succeeded()) {
+                        System.err.println("TCP connect failed");
+                        return;
+                    }
+
+                    System.out.println("TCP connect successfully");
+                    NetSocket socket = res.result();
+                    // make data
+                    ProtocolMessage<RpcRequest> protocolMessage = new ProtocolMessage<>();
+                    ProtocolMessage.Header header = new ProtocolMessage.Header();
+                    header.setMagic(ProtocolConstant.PROTOCOL_MAGIC);
+                    header.setVersion(ProtocolConstant.PROTOCOL_VERSION);
+                    header.setSerializer(ProtocolMessageSerializerEnum.getEnumByValue(RpcApplication.getRpcConfig().getSerializer()).getKey());
+                    header.setType(ProtocolMessageTypeEnum.REQUEST.getKey());
+                    header.setRequestId(IdUtil.getSnowflakeNextId());
+                    protocolMessage.setHeader(header);
+                    protocolMessage.setBody(rpcRequest);
+
+                    // send data
+                    try {
+                        Buffer buffer = ProtocolMessageUtils.encode(protocolMessage);
+                        socket.write(buffer);
+                    } catch (IOException e) {
+                        throw new RuntimeException("protocol encode failed");
+                    }
+
+                    // get response data ***** USE Wrapper HERE !!!!!
+                    TcpBufferHandlerWrapper bufferHandlerWrapper = new TcpBufferHandlerWrapper(
+                            buffer -> {
+                                try {
+                                    ProtocolMessage<RpcResponse> responseProtocolMessage = (ProtocolMessage<RpcResponse>) ProtocolMessageUtils.decode(buffer);
+                                    responseFuture.complete(responseProtocolMessage.getBody());
+                                } catch (IOException e) {
+                                    throw new RuntimeException("protocol decode failed");
+                                }
+                            });
+
+                    socket.handler(bufferHandlerWrapper);
+                }); // block here, when response finished, then go on
+
+        RpcResponse rpcResponse = responseFuture.get();
+        // close connect
+        netClient.close();
+        return rpcResponse;
+    }
+}
+```
+
+:star:`TcpServerHandler`
+
+```java
+public class TcpServerHandler implements Handler<NetSocket> {
+    @Override
+    public void handle(NetSocket netSocket) {
+        // ***** USE Wrapper HERE !!!!!
+        TcpBufferHandlerWrapper bufferHandlerWrapper = new TcpBufferHandlerWrapper(buffer -> {
+            ProtocolMessage<RpcRequest> protocolMessage;
+            try {
+                protocolMessage = (ProtocolMessage<RpcRequest>) ProtocolMessageUtils.decode(buffer);
+            } catch (IOException e) {
+                throw new RuntimeException("decode error", e);
+            }
+            RpcRequest rpcRequest = protocolMessage.getBody();
+
+            RpcResponse rpcResponse = new RpcResponse();
+            try {
+                Class<?> implClass = LocalRegistry.get(rpcRequest.getServiceName());
+                Method method = implClass.getMethod(rpcRequest.getMethodName(), rpcRequest.getParameterTypes());
+                Object res = method.invoke(implClass.newInstance(), rpcRequest.getArgs());
+
+                rpcResponse.setData(res);
+                rpcResponse.setDataType(method.getReturnType());
+                rpcResponse.setMessage("ok");
+            } catch (Exception e) {
+                e.printStackTrace();
+                rpcResponse.setMessage(e.getMessage());
+                rpcResponse.setException(e);
+            }
+
+            ProtocolMessage.Header header = protocolMessage.getHeader();
+            header.setType(ProtocolMessageTypeEnum.RESPONSE.getKey());
+            ProtocolMessage<RpcResponse> responseProtocolMessage = new ProtocolMessage<>(header, rpcResponse);
+            try {
+                Buffer encodeBuffer = ProtocolMessageUtils.encode(responseProtocolMessage);
+                netSocket.write(encodeBuffer);
+            } catch (IOException e) {
+                throw new RuntimeException("encode error", e);
+            }
+        });
+        netSocket.handler(bufferHandlerWrapper);
+    }
+}
+```
+
+可以看出, Wrapper 的作用就是**包裹接受TCP数据流(Buffer)的代码**, 里面的逻辑通常是对收到的数据流 decode.
+
+:stars:`TcpBufferHandlerWrapper`
+
+```java
+// TcpBufferHandlerWrapper 结构
+public class TcpBufferHandlerWrapper implements Handler<Buffer> {
+    private final RecordParser recordParser;
+
+    // 初始化RecordParser来解析字节流
+    private RecordParser initRecordParse(Handler<Buffer> bufferHandler) {
+        RecordParser parser = RecordParser.newFixed(ProtocolConstant.MESSAGE_HEADER_LENGTH);
+
+        parser.setOutput(new Handler<Buffer>() {
+            int bodyLength = -1;  // Body的长度，将会从Header中解析出来
+            Buffer resBuffer = Buffer.buffer();  // 用来缓存接收到的数据
+
+            @Override
+            public void handle(Buffer buffer) {
+                if (-1 == bodyLength) {
+                    // 1. 首先解析 Header（固定长度 17 字节）
+                    bodyLength = buffer.getInt(13); // 获取 Body 的长度，假设Header的索引 13..=16 字节表示 BodyLength
+                    parser.fixedSizeMode(bodyLength);  // 根据Body的长度设置接下来的解析模式
+                    resBuffer.appendBuffer(buffer);  // 将Header数据缓存起来
+                } else {
+                    // 2. 接收 Body 数据
+                    resBuffer.appendBuffer(buffer);  // 将接收到的Body数据添加到缓存中
+
+                    // 3. 检查是否收到了完整的 Body 数据
+                    if (resBuffer.length() >= bodyLength + 17) { // 通常, 这一层 if 也可以省略, 加上的话防止数据遗漏
+                        bufferHandler.handle(resBuffer);  // 调用外部传入的回调，处理完整的消息
+
+                        // 4. 处理完后，重置状态，准备处理下一个数据包
+                        parser.fixedSizeMode(ProtocolConstant.MESSAGE_HEADER_LENGTH); // 回到Header模式
+                        bodyLength = -1;  // 重置Body长度
+                        resBuffer = Buffer.buffer();  // 重置缓存
+                    }
+                }
+            }
+        });
+        return parser;
+    }
+
+    public TcpBufferHandlerWrapper(Handler<Buffer> bufferHandler) {
+        recordParser = initRecordParse(bufferHandler);
+    }
+
+    @Override
+    public void handle(Buffer buffer) {
+        recordParser.handle(buffer);  // 将字节流交给 RecordParser 处理
+    }
+}
+```
+
+`TcpBufferHandlerWrapper` 是一种用于处理 TCP 数据流的工具, 它解决了 TCP 网络编程中的半包 (Partial Packet) 和粘包 (Packet Merging) 问题. 这些问题通常出现在基于 TCP 协议的数据传输中, 由于 TCP 是面向字节流的协议, 接收方可能会在一次读取中接收到多个包的数据, 或者一个包的数据被分成多个部分接收到. 
+
+`TcpBufferHandlerWrapper` 的主要作用是**包裹和处理接收到的 TCP 数据流，并将其正确解析**。它通过内部使用 `RecordParser` 类来实现这个功能。具体来说，`TcpBufferHandlerWrapper` 完成以下工作：
+
+1. **解析 TCP 数据流：**
+   - `TcpBufferHandlerWrapper` 中使用了 `RecordParser` 来处理接收到的字节流。`RecordParser` 是一个流式解析器，它可以按照固定的长度读取数据，**并确保在接收到完整的数据包后才触发处理回调**。
+2. **解决半包和粘包问题：**
+   - **半包问题**：接收方可能在一次读取中只接收到部分数据包。`RecordParser` 通过设置固定的消息头长度来识别数据包的开始和结束。初次接收的数据包只有部分内容（例如，只有数据包头部），因此它会等待更多的数据来完成包的接收。直到接收到完整的数据（包括数据包头部和实际数据），才会触发后续的处理逻辑。
+   - **粘包问题**：多个数据包的内容可能被粘在一起，作为一个连续的字节流一起接收到。`RecordParser` 通过先解析消息头（如包长度等元数据），然后根据头部的大小来分割数据流，将不同的数据包分开。这样即使多个数据包被一起接收，`RecordParser` 也能正确地将其分开并传递给处理逻辑。
+3. **包裹接收流的处理：**
+   - `TcpBufferHandlerWrapper` 内部持有一个 `RecordParser` 实例，并通过这个实例来处理每一块接收到的 TCP 数据。当数据流进入 `handle` 方法时，`RecordParser` 会根据设置的固定长度（如消息头长度）来决定何时开始解析数据，确保接收的每个数据包都是完整的。
+4. **回调处理：**
+   - 一旦完整的数据包被接收并解析，`TcpBufferHandlerWrapper` 会将数据传递给提供的回调函数（`bufferHandler`）。在示例代码中，回调函数用于将数据包解码为协议消息，并执行进一步的业务逻辑（如处理请求和发送响应）。
+
+相当于, Header 的字节长度我们永远知道是固定的, 我们就把这个定值写入字节流的逻辑, 等确保Header被正确解析后, 再通过Header中关于字节长度不定的部分 (Body 部分) 的长度, 准确解析出Body. 

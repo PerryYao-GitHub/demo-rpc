@@ -1,4 +1,4 @@
-package com.ypy.rpc.server;
+package com.ypy.rpc.server.http;
 
 import com.ypy.rpc.RpcApplication;
 import com.ypy.rpc.registry.LocalRegistry;
