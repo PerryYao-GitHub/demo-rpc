@@ -1192,3 +1192,21 @@ public class ConsistentHashLoadBalancer implements LoadBalancer {
 }
 ```
 
+## Update 8: Retry Stragety
+
+这一个升级就是希望在Consumer发送RpcRequest后, 如果回复出错了, 可以进行多次重试, 即
+
+```java
+RetryStrategy retryStrategy = RetryStrategyFactory.getInstance(rpcConfig.getRetryStrategy());
+RpcResponse rpcResponse = retryStrategy.doRetry(()->VertxTcpClient.doRequest(rpcRequest, serviceMetaInfo));
+```
+
+:star:`com.ypy.rpc.fault.retry.RetryStrategy`
+
+```java
+public interface RetryStrategy {
+    RpcResponse doRetry(Callable<RpcResponse> callable) throws Exception;
+}
+```
+
+以上接口可以使用 lambda 表达式调用, 其原因是: 该接口只有一个方法 (是函数式接口), 并且 Callable 也是函数式接口

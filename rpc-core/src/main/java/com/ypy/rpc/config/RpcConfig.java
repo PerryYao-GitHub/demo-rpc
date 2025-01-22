@@ -1,5 +1,7 @@
 package com.ypy.rpc.config;
 
+import com.ypy.rpc.fault.retry.RetryStrategy;
+import com.ypy.rpc.fault.retry.RetryStrategyKeys;
 import com.ypy.rpc.loadbalancer.LoadBalancerKeys;
 import com.ypy.rpc.serializer.SerializerKeys;
 import lombok.Data;
@@ -48,5 +50,7 @@ public class RpcConfig {
      * loadbalancer
      */
     private String loadbalancer = LoadBalancerKeys.ROUND_ROBIN;
+
+    private String retryStrategy = RetryStrategyKeys.FIXED_INTERVAL;
 
 }

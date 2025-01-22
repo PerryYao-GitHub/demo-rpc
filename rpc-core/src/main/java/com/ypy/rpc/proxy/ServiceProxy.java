@@ -6,6 +6,8 @@ import cn.hutool.http.HttpResponse;
 import com.ypy.rpc.RpcApplication;
 import com.ypy.rpc.RpcConstant;
 import com.ypy.rpc.config.RpcConfig;
+import com.ypy.rpc.fault.retry.RetryStrategy;
+import com.ypy.rpc.fault.retry.RetryStrategyFactory;
 import com.ypy.rpc.loadbalancer.LoadBalancer;
 import com.ypy.rpc.loadbalancer.LoadBalancerFactory;
 import com.ypy.rpc.model.ServiceMetaInfo;
@@ -52,13 +54,16 @@ public class ServiceProxy implements InvocationHandler {
         List<ServiceMetaInfo> serviceMetaInfos = registry.serviceDiscovery(serviceMetaInfo.getServiceKey());
         if (serviceMetaInfos.isEmpty()) throw new RuntimeException("no service url");
 //        ServiceMetaInfo selectedServiceMetaInfo = serviceMetaInfos.get(0); // choose the first service temporarily
-
+//      use loadbalance
         LoadBalancer lb = LoadBalancerFactory.getInstance(rpcConfig.getLoadbalancer());
         Map<String, Object> requestParams = new HashMap<>();
         requestParams.put("methodName", rpcRequest.getMethodName());
         ServiceMetaInfo selectedServiceMetaInfo = lb.select(requestParams, serviceMetaInfos);
 
-        RpcResponse rpcResponse = VertxTcpClient.doRequest(rpcRequest, selectedServiceMetaInfo); // "get response" move into VertxTcpClient !!!
+//        RpcResponse rpcResponse = VertxTcpClient.doRequest(rpcRequest, selectedServiceMetaInfo); // "get response" move into VertxTcpClient !!!
+//      use retry strategy
+        RetryStrategy retryStrategy = RetryStrategyFactory.getInstance(rpcConfig.getRetryStrategy());
+        RpcResponse rpcResponse = retryStrategy.doRetry(()->VertxTcpClient.doRequest(rpcRequest, serviceMetaInfo));
         return rpcResponse.getData();
 
         /* http request
