@@ -1149,3 +1149,46 @@ public class TcpBufferHandlerWrapper implements Handler<Buffer> {
    - 一旦完整的数据包被接收并解析，`TcpBufferHandlerWrapper` 会将数据传递给提供的回调函数（`bufferHandler`）。在示例代码中，回调函数用于将数据包解码为协议消息，并执行进一步的业务逻辑（如处理请求和发送响应）。
 
 相当于, Header 的字节长度我们永远知道是固定的, 我们就把这个定值写入字节流的逻辑, 等确保Header被正确解析后, 再通过Header中关于字节长度不定的部分 (Body 部分) 的长度, 准确解析出Body. 
+
+## Update 7: Loadbalancer
+
+使用三种算法实现三种 LoadBalancer, 并且加入 SPI, 允许用户自定义实现类. LoadBalancer 接口很简单, 就是一个 select 方法, 从一堆 ServiceMetaInfo 中选择一个出来 (这一逻辑之前都是简单写成选择第一个服务). 
+
+实现这一方法的逻辑有:
+
+- 轮询取模 (缺点: 当有结点下线时不稳定)
+- 随机
+- 加权轮询
+- 加权随机
+- 一致哈希
+
+:star:`com.ypy.rpc.loadbalancer.ConsistentHashLoadBalancer`
+
+```java
+public class ConsistentHashLoadBalancer implements LoadBalancer {
+    private final TreeMap<Integer, ServiceMetaInfo> virtualNodes = new TreeMap<>();
+
+    private static final int VIRTUAL_NODE_NUM = 10;
+
+    private int getHash(Object key) { return key.hashCode(); }
+
+    @Override
+    public ServiceMetaInfo select(Map<String, Object> requestParams, List<ServiceMetaInfo> serviceMetaInfoList) {
+        if (serviceMetaInfoList.isEmpty()) return null;
+
+        for (ServiceMetaInfo serviceMetaInfo : serviceMetaInfoList) { // 生成虚拟结点
+            for (int i = 0; i < VIRTUAL_NODE_NUM; i ++) {
+                int hash = getHash(serviceMetaInfo.getServiceAddr() + "#" + i);
+                virtualNodes.put(hash, serviceMetaInfo);
+            }
+        }
+
+        int hash = getHash(requestParams);
+
+        Map.Entry<Integer, ServiceMetaInfo> entry = virtualNodes.ceilingEntry(hash); // 找hash值>hash的最小key
+        if (entry == null) entry = virtualNodes.firstEntry();
+        return entry.getValue();
+    }
+}
+```
+

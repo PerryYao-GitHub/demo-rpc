@@ -6,6 +6,8 @@ import cn.hutool.http.HttpResponse;
 import com.ypy.rpc.RpcApplication;
 import com.ypy.rpc.RpcConstant;
 import com.ypy.rpc.config.RpcConfig;
+import com.ypy.rpc.loadbalancer.LoadBalancer;
+import com.ypy.rpc.loadbalancer.LoadBalancerFactory;
 import com.ypy.rpc.model.ServiceMetaInfo;
 import com.ypy.rpc.protocol.*;
 import com.ypy.rpc.registry.Registry;
@@ -23,7 +25,9 @@ import io.vertx.core.net.NetSocket;
 import java.io.IOException;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -47,7 +51,12 @@ public class ServiceProxy implements InvocationHandler {
         serviceMetaInfo.setServiceVersion(RpcConstant.DEFAULT_SERVICE_VERSION);
         List<ServiceMetaInfo> serviceMetaInfos = registry.serviceDiscovery(serviceMetaInfo.getServiceKey());
         if (serviceMetaInfos.isEmpty()) throw new RuntimeException("no service url");
-        ServiceMetaInfo selectedServiceMetaInfo = serviceMetaInfos.get(0); // choose the first service temporarily
+//        ServiceMetaInfo selectedServiceMetaInfo = serviceMetaInfos.get(0); // choose the first service temporarily
+
+        LoadBalancer lb = LoadBalancerFactory.getInstance(rpcConfig.getLoadbalancer());
+        Map<String, Object> requestParams = new HashMap<>();
+        requestParams.put("methodName", rpcRequest.getMethodName());
+        ServiceMetaInfo selectedServiceMetaInfo = lb.select(requestParams, serviceMetaInfos);
 
         RpcResponse rpcResponse = VertxTcpClient.doRequest(rpcRequest, selectedServiceMetaInfo); // "get response" move into VertxTcpClient !!!
         return rpcResponse.getData();

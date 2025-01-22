@@ -1,5 +1,6 @@
 package com.ypy.rpc.config;
 
+import com.ypy.rpc.loadbalancer.LoadBalancerKeys;
 import com.ypy.rpc.serializer.SerializerKeys;
 import lombok.Data;
 
@@ -42,4 +43,10 @@ public class RpcConfig {
      * registry
      */
     private RegistryConfig registryConfig = new RegistryConfig();
+
+    /**
+     * loadbalancer
+     */
+    private String loadbalancer = LoadBalancerKeys.ROUND_ROBIN;
+
 }

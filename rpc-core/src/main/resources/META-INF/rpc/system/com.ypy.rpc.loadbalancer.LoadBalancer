@@ -1,0 +1,3 @@
+roundRobin=com.ypy.rpc.loadbalancer.RoundRobinLoadBalancer
+random=com.ypy.rpc.loadbalancer.RandomLoadBalancer
+consistentHash=com.ypy.rpc.loadbalancer.ConsistentHashLoadBalancer
