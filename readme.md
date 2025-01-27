@@ -1192,7 +1192,7 @@ public class ConsistentHashLoadBalancer implements LoadBalancer {
 }
 ```
 
-## Update 8: Retry Stragety
+## Update 8: Retry Strategy
 
 这一个升级就是希望在Consumer发送RpcRequest后, 如果回复出错了, 可以进行多次重试, 即
 

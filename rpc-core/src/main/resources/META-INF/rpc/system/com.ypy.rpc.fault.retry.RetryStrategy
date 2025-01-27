@@ -1,2 +1,2 @@
 no=com.ypy.rpc.fault.retry.NoRetryStrategy
-fixedInterval=com.ypy.rpc.fault.retry.FixedIntervalRetryStrategy
+

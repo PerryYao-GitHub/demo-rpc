@@ -8,6 +8,8 @@ import com.ypy.rpc.RpcConstant;
 import com.ypy.rpc.config.RpcConfig;
 import com.ypy.rpc.fault.retry.RetryStrategy;
 import com.ypy.rpc.fault.retry.RetryStrategyFactory;
+import com.ypy.rpc.fault.tolerant.TolerantStrategy;
+import com.ypy.rpc.fault.tolerant.TolerantStrategyFactory;
 import com.ypy.rpc.loadbalancer.LoadBalancer;
 import com.ypy.rpc.loadbalancer.LoadBalancerFactory;
 import com.ypy.rpc.model.ServiceMetaInfo;
@@ -61,9 +63,16 @@ public class ServiceProxy implements InvocationHandler {
         ServiceMetaInfo selectedServiceMetaInfo = lb.select(requestParams, serviceMetaInfos);
 
 //        RpcResponse rpcResponse = VertxTcpClient.doRequest(rpcRequest, selectedServiceMetaInfo); // "get response" move into VertxTcpClient !!!
-//      use retry strategy
-        RetryStrategy retryStrategy = RetryStrategyFactory.getInstance(rpcConfig.getRetryStrategy());
-        RpcResponse rpcResponse = retryStrategy.doRetry(()->VertxTcpClient.doRequest(rpcRequest, serviceMetaInfo));
+//      use retry strategy and tolerant strategy
+        RpcResponse rpcResponse;
+        try {
+            RetryStrategy retryStrategy = RetryStrategyFactory.getInstance(rpcConfig.getRetryStrategy());
+            rpcResponse = retryStrategy.doRetry(()->VertxTcpClient.doRequest(rpcRequest, selectedServiceMetaInfo));
+        } catch (Exception e) {
+            TolerantStrategy tolerantStrategy = TolerantStrategyFactory.getInstance(rpcConfig.getTolerantStrategy());
+            rpcResponse = tolerantStrategy.doTolerant(null, e);
+        }
+//        rpcResponse = VertxTcpClient.doRequest(rpcRequest, selectedServiceMetaInfo);
         return rpcResponse.getData();
 
         /* http request

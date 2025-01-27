@@ -1,0 +1,2 @@
+failFast=com.ypy.rpc.fault.tolerant.FailFastTolerantStrategy
+failSafe=com.ypy.rpc.fault.tolerant.FailSafeTolerantStrategy

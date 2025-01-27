@@ -26,13 +26,14 @@ public class SpiLoader {
     private static final String RPC_SYSTEM_SPI_DIR = "META-INF/rpc/system/";
     private static final String RPC_CUSTOM_SPI_DIR = "META-INF/rpc/custom/";
     private static final String[] SCAN_DIRS = new String[]{RPC_SYSTEM_SPI_DIR, RPC_CUSTOM_SPI_DIR};
-    private static final List<Class<?>> LOAD_CLASS_LIST = Arrays.asList(Serializer.class);
 
-
-    public static void loadAll() {
-        log.info("load all SPI");
-        for (Class<?> clazz : LOAD_CLASS_LIST) load(clazz);
-    }
+//    private static final List<Class<?>> LOAD_CLASS_LIST = Arrays.asList(Serializer.class);
+//
+//
+//    public static void loadAll() {
+//        log.info("load all SPI");
+//        for (Class<?> clazz : LOAD_CLASS_LIST) load(clazz);
+//    }
 
     /**
      * load a certain Class from SPI
@@ -54,6 +55,7 @@ public class SpiLoader {
                         String[] strs = line.split("=");
 //                        System.out.println(Arrays.toString(strs));
                         if (strs.length > 1) {
+                            System.out.println(Arrays.toString(strs));
                             String key = strs[0];
                             String className = strs[1];
                             keyClassMap.put(key, Class.forName(className));
